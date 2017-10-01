@@ -68,12 +68,12 @@ function imgProc_sm(infile, outfile, probename, n, nEvery, projectname, varargin
 %       2: HVPS/2DS, 128 doides, boundary 170
 	
 	
-	iRectEllipse = 0;  % Set defualt to no Rectangle fit and Ellipse fit
+	iRectEllipse = 1;  % Set defualt to no Rectangle fit and Ellipse fit
 	
 	% Option to save diode stats for every particle
 	% More than doubles filesize, and increase computation time
 	% Only enable if actually needed
-	calcAllDiodeStats = 0;
+	calcAllDiodeStats = 1;
 	
 	switch probename
 		case '2DC'
@@ -449,10 +449,9 @@ function imgProc_sm(infile, outfile, probename, n, nEvery, projectname, varargin
 		% May be PECAN-specific, but should be tested with other DMT probe data - Added by Dan Stechman 8/1/17
 		if probetype == 1
 			tempMmbr = ismember(data,boundary);
-			goodBnd = [1,1,1,1,1,1,1,1];
-			crptBnd = [0,1,1,1,1,1,1,1];
-			numCrptBnds = length(find(ismember(tempMmbr,crptBnd,'rows')));
-			numGoodBnds = length(find(ismember(tempMmbr,goodBnd,'rows')));
+			memberSum = sum(tempMmbr,2);
+			numCrptBnds = length(find(memberSum > 4 & memberSum < 8));
+			numGoodBnds = length(find(memberSum == 8));
 
 			if numCrptBnds > 0
 				fprintf('%d/%d boundaries in record %d are corrupt.\n',numCrptBnds,numGoodBnds+numCrptBnds,i);
