@@ -1,4 +1,4 @@
-function imgProc_sm(infile, outfile, probename, n, nEvery, projectname, iRectEllipse, iCalcAllDiodeStats, varargin)
+function imgProc_sm(infile, outfile, probename, n, nEvery, projectname, iRectEllipse, iCalcAllDiodeStats, iQC, iNewHabit, varargin)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %  This function is the image processing part of OAP processing using
 %  distributed memory parallisation. The function use one simple interface
@@ -17,6 +17,9 @@ function imgProc_sm(infile, outfile, probename, n, nEvery, projectname, iRectEll
 %    iRectEllipse: 0 - Do not process rectangle/ellipse fit dimensions; 1 - Process this info
 %    iCalcAllDiodeStats: 0 - Do not save diode stats for every particle (large
 %                        files); 1 - Save
+%    iQC      :   0 - Do not QC image; 1 - QC image (EXPERIMENTAL; removes spurrious pixels) % ED/JF 12/27/23
+%    iNewHabit:   0 - Use existing Holroyd scheme; 1 - Use modified
+%                 Holroyd scheme tuned to 2DS/HVPS
 %    varargin :   OPTIONAL arguments for the 2DS/HVPS/3VCPI, in the following order:
 %                       tasTime:    Flight time in HHMMSS
 %                       tas:        Flight TAS in m/s
@@ -360,15 +363,17 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
 	netcdf.putAtt(f, varid9, 'Description', 'Particle index within current image record')
     netcdf.defVarDeflate(f, varid9, true, true, 9);
     
-    varid91  = netcdf.defVar(f,'subparticle_num','short',dimid0);
-	netcdf.putAtt(f, varid91, 'Units', '--')
-	netcdf.putAtt(f, varid91, 'Description', 'Number of subparticles in image')
-    netcdf.defVarDeflate(f, varid91, true, true, 9);
-    
-    varid92  = netcdf.defVar(f,'subparticle_mindist','short',dimid0);
-	netcdf.putAtt(f, varid92, 'Units', '--')
-	netcdf.putAtt(f, varid92, 'Description', 'Minimum distance between subparticles in image')
-    netcdf.defVarDeflate(f, varid92, true, true, 9);
+    if 1==iQC
+        varid91  = netcdf.defVar(f,'subparticle_num','short',dimid0);
+        netcdf.putAtt(f, varid91, 'Units', '--')
+        netcdf.putAtt(f, varid91, 'Description', 'Number of subparticles in image')
+        netcdf.defVarDeflate(f, varid91, true, true, 9);
+
+        varid92  = netcdf.defVar(f,'subparticle_mindist','short',dimid0);
+        netcdf.putAtt(f, varid92, 'Units', '--')
+        netcdf.putAtt(f, varid92, 'Description', 'Minimum distance between subparticles in image')
+        netcdf.defVarDeflate(f, varid92, true, true, 9);
+    end
 	
 	varid10 = netcdf.defVar(f,'image_length','short',dimid0);
 	netcdf.putAtt(f, varid10, 'Units', '--')
@@ -495,6 +500,16 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
 		netcdf.putAtt(f, varid67, 'Units', 'radians')
 		netcdf.putAtt(f, varid67, 'Description', 'Angle of rectangle with respect to the time direction')
         netcdf.defVarDeflate(f, varid67, true, true, 9);
+        
+        % varid73 = netcdf.defVar(f,'image_RectangleX','double',dimid0);
+		% netcdf.putAtt(f, varid73, 'Units', '--')
+		% netcdf.putAtt(f, varid73, 'Description', 'Center position of rectangle with respect to the time direction')
+        % netcdf.defVarDeflate(f, varid73, true, true, 9);
+        
+        % varid74 = netcdf.defVar(f,'image_RectangleY','double',dimid0);
+		% netcdf.putAtt(f, varid74, 'Units', '--')
+		% netcdf.putAtt(f, varid74, 'Description', 'Center position of rectangle with respect to the photodiode direction')
+        % netcdf.defVarDeflate(f, varid74, true, true, 9);
 		
 		varid48 = netcdf.defVar(f,'image_EllipseL','double',dimid0);
 		netcdf.putAtt(f, varid48, 'Units', 'mm')
@@ -510,6 +525,16 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
 		netcdf.putAtt(f, varid69, 'Units', 'radians')
 		netcdf.putAtt(f, varid69, 'Description', 'Angle of rectangle with respect to the time direction')
         netcdf.defVarDeflate(f, varid69, true, true, 9);
+        
+        % varid75 = netcdf.defVar(f,'image_EllipseX','double',dimid0);
+		% netcdf.putAtt(f, varid75, 'Units', '--')
+		% netcdf.putAtt(f, varid75, 'Description', 'Center position of ellipse with respect to the time direction')
+        % netcdf.defVarDeflate(f, varid75, true, true, 9);
+        
+        % varid76 = netcdf.defVar(f,'image_EllipseY','double',dimid0);
+		% netcdf.putAtt(f, varid76, 'Units', '--')
+		% netcdf.putAtt(f, varid76, 'Description', 'Center position of ellipse with respect to the photodiode direction')
+        % netcdf.defVarDeflate(f, varid76, true, true, 9);
 	end
 	varid28 = netcdf.defVar(f,'percent_shadow_area','double',dimid0);
 	netcdf.putAtt(f, varid28, 'Units', 'percent')
@@ -539,10 +564,17 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
 	
 	varid33 = netcdf.defVar(f,'holroyd_habit','short',dimid0);
 	netcdf.putAtt(f, varid33, 'Units', '--')
-	netcdf.putAtt(f, varid33, 'Description', ['ASCII habit code following the Holroyd (1987) algorithm ',...
-		'("M" or 77: zero image; "C" or 67: center-out image; "t" or 116: tiny; "o" or 111: oriented; ',...
-		'"l" or 108: linear; "a" or 97: aggregate; "g" or 103: graupel; "s" or 115: sphere; ',...
-		'"h" or 104: hexagonal; "i" or 105: irregular; "d" or 100: dendrite)'])
+    if 1 == iNewHabit
+	    netcdf.putAtt(f, varid33, 'Description', ['ASCII habit code following the Holroyd (1987) algorithm ',...
+		    '("M" or 77: zero image; "C" or 67: center-out image; "t" or 116: tiny; "o" or 111: bad/split; ',...
+		    '"l" or 108: linear; "a" or 97: aggregate; "g" or 103: graupel; "s" or 115: sphere; ',...
+		    '"h" or 104: hexagonal; "i" or 105: irregular; "d" or 100: dendrite)'])
+    else
+        netcdf.putAtt(f, varid33, 'Description', ['ASCII habit code following the Holroyd (1987) algorithm ',...
+		    '("M" or 77: zero image; "C" or 67: center-out image; "t" or 116: tiny; "o" or 111: oriented; ',...
+		    '"l" or 108: linear; "a" or 97: aggregate; "g" or 103: graupel; "s" or 115: sphere; ',...
+		    '"h" or 104: hexagonal; "i" or 105: irregular; "d" or 100: dendrite)'])
+    end
     netcdf.defVarDeflate(f, varid33, true, true, 9);
     
     varid331 = netcdf.defVar(f,'fine_detail_ratio','double',dimid0); % added variable to file output ~ Joe Finlon 11/3/19
@@ -554,6 +586,43 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
     netcdf.putAtt(f, varid332, 'Units', '--')
     netcdf.putAtt(f, varid332, 'Description', 'sqrt(area)/perim following McFarquhar et al. (2005)')
     netcdf.defVarDeflate(f,varid332, true, true, 9);
+
+    if 1 == iNewHabit
+        varid333 = netcdf.defVar(f,'width_length_percentile','double',dimid0);
+        netcdf.putAtt(f, varid333, 'Units', 'mm')
+        netcdf.putAtt(f, varid333, 'Description', 'Minimum difference between the 25th and 75th percentiles of particle length and width')
+        netcdf.defVarDeflate(f, varid333, true, true, 9);
+        
+        varid334 = netcdf.defVar(f,'circle_area_ratio','double',dimid0);
+        netcdf.putAtt(f, varid334, 'Units', '--')
+        netcdf.putAtt(f, varid334, 'Description', 'Ratio between particle area and that of the approximated smallest circle enclosing the particle')
+        netcdf.defVarDeflate(f, varid334, true, true, 9);
+        
+        varid335 = netcdf.defVar(f,'edge_maximum_dimension_ratio','double',dimid0);
+        netcdf.putAtt(f, varid335, 'Units', '--')
+        netcdf.putAtt(f, varid335, 'Description', 'Ratio between number of diodes illuminated along the frame edge with the most illuminated diodes and the particle maximum dimension')
+        netcdf.defVarDeflate(f, varid335, true, true, 9);
+        
+        varid336 = netcdf.defVar(f,'maximum_gap','double',dimid0);
+        netcdf.putAtt(f, varid336, 'Units', 'mm')
+        netcdf.putAtt(f, varid336, 'Description', 'Maximum gap between any two separate illuminated areas along the x or y axes')
+        netcdf.defVarDeflate(f, varid336, true, true, 9);
+        
+        varid337 = netcdf.defVar(f,'opacity_coefficient','double',dimid0);
+        netcdf.putAtt(f, varid337, 'Units', '--')
+        netcdf.putAtt(f, varid337, 'Description', 'Fraction (0-1) approximating the transparency of a particle')
+        netcdf.defVarDeflate(f, varid337, true, true, 9);
+        
+        varid338 = netcdf.defVar(f,'aspect_ratio','double',dimid0);
+        netcdf.putAtt(f, varid338, 'Units', '--')
+        netcdf.putAtt(f, varid338, 'Description', 'Ratio between length of longest axis and length of shortest axis of particle')
+        netcdf.defVarDeflate(f, varid338, true, true, 9);
+        
+        varid339 = netcdf.defVar(f,'holroyd_perimeter','double',dimid0);
+        netcdf.putAtt(f, varid339, 'Units', 'mm')
+        netcdf.putAtt(f, varid339, 'Description', 'Particle perimeter following Holroyd (1987) including perimeter added by holes within particle')
+        netcdf.defVarDeflate(f, varid339, true, true, 9);
+    end
 	
 	varid34 = netcdf.defVar(f,'area_hole_ratio','double',dimid0);
 	netcdf.putAtt(f, varid34, 'Units', '--')
@@ -708,50 +777,52 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
                 
                 %% Correct images for noise
                 % Ensure at least 5 or pix_thresh percent of total shadowed pixels
-                % are needed for connected pixels ~ ED 12/12/23
-                pix_thresh = 5; % experimental percent threshold for outlier pixel clusters
-                c_logical = bwareaopen('1' - c, max(5, floor(0.01*pix_thresh*sum(sum(c=='0'))))); % logical
-                if max(c_logical(:))==0
-                    %continue % commenting for now
-                    images.num_subparticles(kk) = 0;
-                    images.dist_min(kk) = 0;
-                else
-                    c_parts = bwconncomp(c_logical, 8);
-                    images.num_subparticles(kk) = c_parts.NumObjects;
-
-                    % Determine minimum distance separating subparticles if num_subparticles > 1
-                    if images.num_subparticles(kk)>1
-                        darr = cell(1,images.num_subparticles(kk)); % darr contains the distance transforms of each subparticle
-                        for ll = 1 : images.num_subparticles(kk)
-                            ctemp =c_logical;
-                            ctemp(~ismember(1:numel(ctemp),c_parts.PixelIdxList{ll})) = 0; % find all pixels that are part of subparticle ll
-                            darr{ll} = bwdist(ctemp,'chessboard'); % distance transform
-                        end
-                        combos = nchoosek(1:images.num_subparticles(kk), 2); % this finds all combinations between each 2 subparticles
-                        comb_size = size(combos, 1);
-
-
-                        % find distances between each combination of two subparticles
-                        dist_arr = zeros(1,comb_size);
-                        for ll = 1 : comb_size
-                            comb_temp = combos(ll,:);
-
-                            % To calculate distances between subparticles, this adds up the
-                            % distance transform for each separate subparticle. The minimum
-                            % distance between each two subparticles is just the minimum of
-                            % the summed distance transform (minus 1 for convention).
-                            dist_arr(ll) = min(min(darr{comb_temp(1)}+darr{comb_temp(2)}))-1; 
-                        end
-                        images.dist_min(kk) = max(mink(dist_arr, images.num_subparticles(kk) - 1));
-                    else % If there is only one particle (i.e., num_subparticles = 1), then there is no min distance between subparticles.
+                % are needed for connected pixels ~ ED/JF 12/12/23
+                if 1==iQC
+                    pix_thresh = 5; % experimental percent threshold for outlier pixel clusters
+                    c_logical = bwareaopen('1' - c, max(5, floor(0.01*pix_thresh*sum(sum(c=='0'))))); % logical
+                    if max(c_logical(:))==0
+                        %continue % commenting for now
+                        images.num_subparticles(kk) = 0;
                         images.dist_min(kk) = 0;
-                    end
+                    else
+                        c_parts = bwconncomp(c_logical, 8);
+                        images.num_subparticles(kk) = c_parts.NumObjects;
 
-                    if images.dist_min(kk)<5 % if num_subparticles - 1 is less than thresh (in this case, 5) then consider both elements to be same particle
-                        images.num_subparticles(kk) = 1;
-                    end
+                        % Determine minimum distance separating subparticles if num_subparticles > 1
+                        if images.num_subparticles(kk)>1
+                            darr = cell(1,images.num_subparticles(kk)); % darr contains the distance transforms of each subparticle
+                            for ll = 1 : images.num_subparticles(kk)
+                                ctemp =c_logical;
+                                ctemp(~ismember(1:numel(ctemp),c_parts.PixelIdxList{ll})) = 0; % find all pixels that are part of subparticle ll
+                                darr{ll} = bwdist(ctemp,'chessboard'); % distance transform
+                            end
+                            combos = nchoosek(1:images.num_subparticles(kk), 2); % this finds all combinations between each 2 subparticles
+                            comb_size = size(combos, 1);
 
-                    c = char('1' - c_logical); % get new image based on all these corrections
+
+                            % find distances between each combination of two subparticles
+                            dist_arr = zeros(1,comb_size);
+                            for ll = 1 : comb_size
+                                comb_temp = combos(ll,:);
+
+                                % To calculate distances between subparticles, this adds up the
+                                % distance transform for each separate subparticle. The minimum
+                                % distance between each two subparticles is just the minimum of
+                                % the summed distance transform (minus 1 for convention).
+                                dist_arr(ll) = min(min(darr{comb_temp(1)}+darr{comb_temp(2)}))-1; 
+                            end
+                            images.dist_min(kk) = max(mink(dist_arr, images.num_subparticles(kk) - 1));
+                        else % If there is only one particle (i.e., num_subparticles = 1), then there is no min distance between subparticles.
+                            images.dist_min(kk) = 0;
+                        end
+
+                        if images.dist_min(kk)<5 % if num_subparticles - 1 is less than thresh (in this case, 5) then consider both elements to be same particle
+                            images.num_subparticles(kk) = 1;
+                        end
+
+                        c = char('1' - c_logical); % get new image based on all these corrections
+                    end
                 end
                 
                 % Just to test if there are bad images, usually 0 area images
@@ -1128,11 +1199,35 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
                 [xImgMax, ~] = size(c);
                 if(images.minR(kk)*handles.diodesize<0.3 && length(find(c(max(1,floor(images.ctx(kk))):min(xImgMax,ceil(images.ctx(kk))),...
                         max(1,floor(images.cty(kk))):min(handles.diodenum,ceil(images.cty(kk))))=='1')) >=1)
-                    [~, images.FS(kk)] = holroyd(handles, c);
+                    if iNewHabit == 0 % use existing Holroyd scheme
+                        [~, images.FS(kk)] = holroyd(handles, c);
+                    else % use modified Holroyd scheme
+                        if strcmp(probename, 'HVPS') % special version for HVPS
+                            [~, images.FS(kk), images.w_l_p(kk), images.c_r(kk), images.e_d_r(kk),...
+                                images.m_g(kk), images.O(kk), images.aspect_ratio(kk),...
+                                images.holroyd_perimeter(kk)] = holroyd_new_HVPS(handles, c);
+                        else
+                            [~, images.FS(kk), images.w_l_p(kk), images.c_r(kk), images.e_d_r(kk),...
+                                images.m_g(kk), images.O(kk), images.aspect_ratio(kk),...
+                                images.holroyd_perimeter(kk)] = holroyd_new(handles, c);
+                        end
+                    end
                     images.holroyd_habit(kk) = 's';
                     images.is_hollow(kk) = 1;
-                else 
-                    [images.holroyd_habit(kk), images.FS(kk)] = holroyd(handles, c);
+                else
+                    if iNewHabit == 0 % use existing Holroyd scheme
+                        [images.holroyd_habit(kk), images.FS(kk)] = holroyd(handles, c);
+                    else
+                        if strcmp(probename, 'HVPS') % special version for HVPS
+                            [images.holroyd_habit(kk), images.FS(kk), images.w_l_p(kk), images.c_r(kk), images.e_d_r(kk),...
+                                images.m_g(kk), images.O(kk), images.aspect_ratio(kk),...
+                                images.holroyd_perimeter(kk)] = holroyd_new_HVPS(handles, c);
+                        else
+                            [images.holroyd_habit(kk), images.FS(kk), images.w_l_p(kk), images.c_r(kk), images.e_d_r(kk),...
+                                images.m_g(kk), images.O(kk), images.aspect_ratio(kk),...
+                                images.holroyd_perimeter(kk)] = holroyd_new(handles, c);
+                        end
+                    end
                     images.is_hollow(kk) = 0;
                 end
                 
@@ -1172,7 +1267,9 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
                     
                 if 1==iRectEllipse
                     [images.RectangleL(kk), images.RectangleW(kk), images.RectangleAngle(kk)] = CGAL_RectSize(c);
-                    [images.EllipseL(kk), images.EllipseW(kk), images.EllipseAngle(kk)]       = CGAL_EllipseSize(c);
+                    [images.EllipseL(kk), images.EllipseW(kk), images.EllipseAngle(kk)] = CGAL_EllipseSize(c);
+                    % [images.RectangleL(kk), images.RectangleW(kk), images.RectangleAngle(kk), images.RectangleY(kk), images.RectangleX(kk)] = CGAL_RectSize(c);
+                    % [images.EllipseL(kk), images.EllipseW(kk), images.EllipseAngle(kk), images.EllipseY(kk), images.EllipseX(kk)] = CGAL_EllipseSize(c);
                 end
                 %% Get the area ratio using the DL=max(DT,DP), only observed area are used
                 if images.image_length(kk) > images.image_width(kk)
@@ -1213,8 +1310,10 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
 			netcdf.putVar ( f, varid7, wstart, w-wstart+1, part_micro(:) );
 			netcdf.putVar ( f, varid8, wstart, w-wstart+1, parent_rec_num );
 			netcdf.putVar ( f, varid9, wstart, w-wstart+1, particle_num(:) );
-            netcdf.putVar ( f, varid91, wstart, w-wstart+1, images.num_subparticles);
-            netcdf.putVar ( f, varid92, wstart, w-wstart+1, images.dist_min);
+            if 1==iQC
+                netcdf.putVar ( f, varid91, wstart, w-wstart+1, images.num_subparticles);
+                netcdf.putVar ( f, varid92, wstart, w-wstart+1, images.dist_min);
+            end
 			netcdf.putVar ( f, varid10, wstart, w-wstart+1, images.image_length);
 			netcdf.putVar ( f, varid11, wstart, w-wstart+1, images.image_width);
 			netcdf.putVar ( f, varid12, wstart, w-wstart+1, images.image_area*diode_size*diode_size/handles.tasRatio);
@@ -1226,24 +1325,19 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
 			netcdf.putVar ( f, varid18, wstart, w-wstart+1, images.is_hollow);
 			netcdf.putVar ( f, varid19, wstart, w-wstart+1, images.center_in);
 			netcdf.putVar ( f, varid20, wstart, w-wstart+1, images.axis_ratio);
-% 			netcdf.putVar ( f, varid21, wstart, w-wstart+1, images.diam_circle_fit);
-% 			netcdf.putVar ( f, varid22, wstart, w-wstart+1, images.diam_horiz_chord);
-% 			netcdf.putVar ( f, varid23, wstart, w-wstart+1, images.diam_horiz_chord ./ images.sf);
-% 			netcdf.putVar ( f, varid24, wstart, w-wstart+1, images.diam_horiz_mean);
-% 			netcdf.putVar ( f, varid25, wstart, w-wstart+1, images.diam_vert_chord);
-			netcdf.putVar ( f, varid26, wstart, w-wstart+1, images.minR*diode_size);
+            netcdf.putVar ( f, varid26, wstart, w-wstart+1, images.minR*diode_size);
 			netcdf.putVar ( f, varid27, wstart, w-wstart+1, images.AreaR*diode_size);
 			netcdf.putVar ( f, varid45, wstart, w-wstart+1, images.Perimeter*diode_size);
             netcdf.putVar ( f, varid71, wstart, w-wstart+1, images.ctx);
             netcdf.putVar ( f, varid72, wstart, w-wstart+1, images.cty);
 			if 1==iRectEllipse
-                %netcdf.putVar ( f, varid73, wstart, w-wstart+1, images.RectangleX);
-                %netcdf.putVar ( f, varid74, wstart, w-wstart+1, images.RectangleY);
+                % netcdf.putVar ( f, varid73, wstart, w-wstart+1, images.RectangleX);
+                % netcdf.putVar ( f, varid74, wstart, w-wstart+1, images.RectangleY);
 				netcdf.putVar ( f, varid46, wstart, w-wstart+1, images.RectangleL*diode_size);
 				netcdf.putVar ( f, varid47, wstart, w-wstart+1, images.RectangleW*diode_size);
 				netcdf.putVar ( f, varid67, wstart, w-wstart+1, images.RectangleAngle);
-                %netcdf.putVar ( f, varid75, wstart, w-wstart+1, images.EllipseX);
-                %netcdf.putVar ( f, varid76, wstart, w-wstart+1, images.EllipseY);
+                % netcdf.putVar ( f, varid75, wstart, w-wstart+1, images.EllipseX);
+                % netcdf.putVar ( f, varid76, wstart, w-wstart+1, images.EllipseY);
 				netcdf.putVar ( f, varid48, wstart, w-wstart+1, images.EllipseL*diode_size);
 				netcdf.putVar ( f, varid49, wstart, w-wstart+1, images.EllipseW*diode_size);
 				netcdf.putVar ( f, varid69, wstart, w-wstart+1, images.EllipseAngle);
@@ -1256,6 +1350,15 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
 			netcdf.putVar ( f, varid33, wstart, w-wstart+1, int16(images.holroyd_habit));
             netcdf.putVar ( f, varid331, wstart, w-wstart+1, images.FS); % Added variable ~ Joe Finlon 11/3/19
             netcdf.putVar ( f, varid332, wstart, w-wstart+1, images.sphericity); % Added Joe Finlon 4/18/22
+            if 1 == iNewHabit % Added variables ~ Julian Schima 11/16/22
+                netcdf.putVar ( f, varid333, wstart, w-wstart+1, images.w_l_p*diode_size);
+        	    netcdf.putVar ( f, varid334, wstart, w-wstart+1, images.c_r);
+        	    netcdf.putVar ( f, varid335, wstart, w-wstart+1, images.e_d_r);
+        	    netcdf.putVar ( f, varid336, wstart, w-wstart+1, images.m_g*diode_size);
+        	    netcdf.putVar ( f, varid337, wstart, w-wstart+1, images.O);
+        	    netcdf.putVar ( f, varid338, wstart, w-wstart+1, images.aspect_ratio);
+        	    netcdf.putVar ( f, varid339, wstart, w-wstart+1, images.holroyd_perimeter*diode_size);
+            end
 			netcdf.putVar ( f, varid34, wstart, w-wstart+1, images.area_hole_ratio);
 			netcdf.putVar ( f, varid35, wstart, w-wstart+1, images.int_arrival);
 			netcdf.putVar ( f, varid36, diode_stats );

@@ -63,6 +63,8 @@
 %           Joe Finlon, 02/07/20
 %   * Enhancements to how significant dead time is handled
 %           Joe Finlon, 08/07/20
+%   * Mass and area calculations using optional new habit scheme
+%           Joe Finlon, 03/11/24
 %
 %  Usage: 
 %    infile:   Input filename, string
@@ -109,6 +111,17 @@ end
 
 
 %% Define input and output files and initialize time variable
+% First check if modified Holroyd habit parameters exist in PbP data
+pbpinfo = ncinfo(infile);
+ncnames = {pbpinfo.Variables.Name};
+if ismember('width_length_percentile', ncnames)
+    iNewHabit = 1;
+    attr_habit = 'Schima et al. (2024)';
+else
+    iNewHabit = 0;
+    attr_habit = 'Holroyd (1987; doi:10.1175/1520-0426(1987)004<0498:STAUOC>2.0.CO;2)';
+end
+
 f = netcdf.open(infile,'nowrite');
 mainf = netcdf.create(outfile, 'NETCDF4'); % netCDF-4/HDF5 compression support - Added by Joe Finlon 02/13/19
 
@@ -384,6 +397,50 @@ switch projectname
 					reaccptD = 0.5;
                     %reaccptMaxIA = 1e-7; % (Slice size [m])/(avg. airspeed [m/s])
 					reaccptMaxIA = 1e-6; % (Slice size [m])/(avg. airspeed [m/s])
+			case '3VCPI_V'
+                num_diodes =128;
+                diodesize = .010;
+                armdst=50.8;
+                %num_bins = 256;
+                %kk = diodesize/2:diodesize:(num_bins+0.6)*diodesize;
+                num_bins =29;
+                kk=[20.0    40.0    60.0    80.0   100.0   125.0   150.0   200.0   250.0   300.0   350.0   400.0 ...
+                    475.0   550.0   625.0   700.0  800.0   900.0   1000.0  1200.0  1400.0  1600.0  1800.0  2000.0 ...
+					2200.0  2400.0  2600.0  2800.0 3000.0 3200.0]/1000;
+                probetype=2;
+                tasMax=170;
+                
+                % Interarrival threshold and reaccept max interarrival time are often flight-/instrument-specific
+				% **Values here may not be correct** 
+				% The interarrival threshold can be modifided to change second-by-second if desired
+                applyIntArrThresh = 1;
+					defaultIntArrThresh = 1e-6;
+				reaccptShatrs = 1;
+					reaccptD = 0.5;
+                    %reaccptMaxIA = 1e-7; % (Slice size [m])/(avg. airspeed [m/s])
+					reaccptMaxIA = 1e-6; % (Slice size [m])/(avg. airspeed [m/s])
+            case '3VCPI_H'
+                num_diodes = 128;
+                diodesize = .050;
+                armdst = 50.8;
+                %num_bins = 256;
+                %kk = diodesize/2:diodesize:(num_bins+0.6)*diodesize;
+                num_bins = 25;
+                kk=[100. 125.0 150.0 200.0 250.0 300.0 350.0  400.0 ...
+                    475.0   550.0   625.0   700.0  800.0   900.0   1000.0  1200.0  1400.0  1600.0  1800.0  2000.0 ...
+					2200.0  2400.0  2600.0  2800.0 3000.0 3200.0]/1000;
+                probetype=2;
+                tasMax=170;
+                
+                % Interarrival threshold and reaccept max interarrival time are often flight-/instrument-specific
+				% **Values here may not be correct** 
+				% The interarrival threshold can be modifided to change second-by-second if desired
+                applyIntArrThresh = 1;
+					defaultIntArrThresh = 1e-6;
+				reaccptShatrs = 1;
+					reaccptD = 0.5;
+                    %reaccptMaxIA = 1e-7; % (Slice size [m])/(avg. airspeed [m/s])
+					reaccptMaxIA = 2.5e-6; % (Slice size [m])/(avg. airspeed [m/s])
                                                
             case 'HVPS'
                 % For the HVPS
@@ -849,15 +906,16 @@ intArrGT1 = [];
 % maxRecNum=1; % Used in legacy interarrival time analysis
 
 fprintf('Beginning size distribution calculations and sorting %s\n\n',datestr(now));
-
-for i=1:length(tas) 
+fprintf('Start/End Flight Time (HHMMSS): %s %s\n', int32(timehhmmss(1)), int32(timehhmmss(end)));
+fprintf('Start/End Particle Time (HHMMSS): %s %s\n', int32(starttime(1)), int32(starttime(end)));
+for i=1:length(tas)
 %     if (int32(timehhmmss(i))>=int32(starttime(jjj)))
     if (eofFlag==0 && int32(timehhmmss(i))>=int32(starttime(jjj))) % Modified by Joe Finlon - 03/03/17
         
         % Attempt to sync TAS file time (timehhmmss) with particle time
 %         if (int32(timehhmmss(i))>int32(starttime(jjj))) %% Deprecated
 %         (Joe Finlon - 03/03/17)
-        while (int32(timehhmmss(i))>int32(starttime(jjj))) % Added by Joe Finlon - 03/03/17
+        while (int32(timehhmmss(i))>int32(starttime(jjj))) % Modified by Joe Finlon - 03/11/24
             jjj=jjj+1;
             if (jjj==length(start_all)) % we've reached the end of the particle data - Added by Joe Finlon - 03/03/17
                 eofFlag = 1;
@@ -1092,15 +1150,15 @@ for i=1:length(tas)
         particle_mass = area*0;
         calcd_area = area*0;
         for iiii=1:length(area)
-           particle_mass(iiii)=single_mass(particle_diameter_minR(iiii)/10, habit1(iiii));  % in unit of gram
-           calcd_area(iiii)=single_area(particle_diameter_minR(iiii)/10, habit1(iiii));  % in unit of mm^2         
+           particle_mass(iiii)=single_mass(particle_diameter_minR(iiii)/10, habit1(iiii), iNewHabit);  % in unit of gram
+           calcd_area(iiii)=single_area(particle_diameter_minR(iiii)/10, habit1(iiii), iNewHabit);  % in unit of mm^2         
         end
         particle_massbl=0.115/1000*area.^(1.218); % in unit of gram
 
 
         %% Added by Robert Jackson -- old version did not have area ratio code
         area_ratio = area./(pi/4.*particle_diameter_minR.^2);
-        area_ratio(area_ratio > 1.) = 1. % Added by Joe Finlon 03/19/23
+        area_ratio(area_ratio > 1.) = 1.; % Added by Joe Finlon 03/19/23
         auto_reject(area_ratio < .2) = 'z';
         
         %% Added by Will to calculate terminal velocity and precipitation rate
@@ -1975,12 +2033,13 @@ dimid3 = netcdf.defDim(mainf,'Habit',10);
 NC_GLOBAL = netcdf.getConstant('NC_GLOBAL');
 netcdf.putAtt(mainf, NC_GLOBAL, 'Software', software_string);
 % netcdf.putAtt(mainf, NC_GLOBAL, 'Institution', 'Univ. Illinois, Dept. Atmos. Sciences');
-netcdf.putAtt(mainf, NC_GLOBAL, 'Creation Time', datestr(now, 'yyyy/mm/dd HH:MM:SS'));
+netcdf.putAtt(mainf, NC_GLOBAL, 'Creation_Time', datestr(now, 'yyyy/mm/dd HH:MM:SS'));
 netcdf.putAtt(mainf, NC_GLOBAL, 'Description', ['Contains size distributions of ',...
     'particle count, mass, etc. & various bulk properties.']);
 netcdf.putAtt(mainf, NC_GLOBAL, 'Project', projectname);
-netcdf.putAtt(mainf, NC_GLOBAL, 'Data Source', infile);
-netcdf.putAtt(mainf, NC_GLOBAL, 'Probe Type', probename);
+netcdf.putAtt(mainf, NC_GLOBAL, 'Data_Source', infile);
+netcdf.putAtt(mainf, NC_GLOBAL, 'Probe_Type', probename);
+netcdf.putAtt(mainf, NC_GLOBAL, 'Habit_Scheme', attr_habit);
 if SAmethod==0
     netcdf.putAtt(mainf, NC_GLOBAL, 'SA Method', 'Center-in');
 elseif SAmethod==1
@@ -2346,34 +2405,32 @@ netcdf.putVar ( mainf, varid23, particle_areaRatio1'); % Fixed data structure fo
 netcdf.putVar ( mainf, varid24, cip2_meanp');
 
 if iCreateBad == 1
-
-% Bad (rejected) particles
-netcdf.putVar ( mainf, varid25, bad_cip2_conc_minR' );
-netcdf.putVar ( mainf, varid26, bad_cip2_conc_areaDist);
-netcdf.putVar ( mainf, varid27, bad_cip2_conc_AreaR' );
-netcdf.putVar ( mainf, varid28, bad_cip2_n);
-netcdf.putVar ( mainf, varid29, bad_cip2_area');
-netcdf.putVar ( mainf, varid30, bad_cip2_iwc');
-netcdf.putVar ( mainf, varid31, permute(double(bad_cip2_habitsd)./svol2a, [3 2 1]) );
-netcdf.putVar ( mainf, varid32, bad_cip2_re );
-netcdf.putVar ( mainf, varid33, bad_one_sec_ar );
-netcdf.putVar ( mainf, varid34, bad_cip2_iwcbl' );
-netcdf.putVar ( mainf, varid35, bad_cip2_vt' );
-netcdf.putVar ( mainf, varid36, bad_cip2_pr' );
-netcdf.putVar ( mainf, varid37, permute(double(bad_cip2_habitmsd)./svol2a, [3 2 1]) );
-netcdf.putVar ( mainf, varid38, bad_cip2_partarea');
-netcdf.putVar ( mainf, varid39, bad_cip2_countP_no');
-netcdf.putVar ( mainf, varid40, bad_particle_aspectRatio'); % Fixed data structure for netCDF export ~ Joe Finlon 02/13/19
-netcdf.putVar ( mainf, varid41, bad_particle_aspectRatio1'); % Fixed data structure for netCDF export ~ Joe Finlon 02/13/19
-netcdf.putVar ( mainf, varid42, bad_particle_areaRatio1'); % Fixed data structure for netCDF export ~ Joe Finlon 02/13/19
-netcdf.putVar ( mainf, varid43, bad_cip2_meanp');
+    % Bad (rejected) particles
+    netcdf.putVar ( mainf, varid25, bad_cip2_conc_minR' );
+    netcdf.putVar ( mainf, varid26, bad_cip2_conc_areaDist);
+    netcdf.putVar ( mainf, varid27, bad_cip2_conc_AreaR' );
+    netcdf.putVar ( mainf, varid28, bad_cip2_n);
+    netcdf.putVar ( mainf, varid29, bad_cip2_area');
+    netcdf.putVar ( mainf, varid30, bad_cip2_iwc');
+    netcdf.putVar ( mainf, varid31, permute(double(bad_cip2_habitsd)./svol2a, [3 2 1]) );
+    netcdf.putVar ( mainf, varid32, bad_cip2_re );
+    netcdf.putVar ( mainf, varid33, bad_one_sec_ar );
+    netcdf.putVar ( mainf, varid34, bad_cip2_iwcbl' );
+    netcdf.putVar ( mainf, varid35, bad_cip2_vt' );
+    netcdf.putVar ( mainf, varid36, bad_cip2_pr' );
+    netcdf.putVar ( mainf, varid37, permute(double(bad_cip2_habitmsd)./svol2a, [3 2 1]) );
+    netcdf.putVar ( mainf, varid38, bad_cip2_partarea');
+    netcdf.putVar ( mainf, varid39, bad_cip2_countP_no');
+    netcdf.putVar ( mainf, varid40, bad_particle_aspectRatio'); % Fixed data structure for netCDF export ~ Joe Finlon 02/13/19
+    netcdf.putVar ( mainf, varid41, bad_particle_aspectRatio1'); % Fixed data structure for netCDF export ~ Joe Finlon 02/13/19
+    netcdf.putVar ( mainf, varid42, bad_particle_areaRatio1'); % Fixed data structure for netCDF export ~ Joe Finlon 02/13/19
+    netcdf.putVar ( mainf, varid43, bad_cip2_meanp');
 end
 
 if iSaveIntArrSV == 1
-    
-% Inter-arrival time and sample volume information
-netcdf.putVar ( mainf, varid44, time_interval200');
-netcdf.putVar ( mainf, varid45, svol2);
+    % Inter-arrival time and sample volume information
+    netcdf.putVar ( mainf, varid44, time_interval200');
+    netcdf.putVar ( mainf, varid45, svol2);
 end
 
 if exist('iatThresh','var') == 1 % Added by Joe Finlon ~ 02/07/20
