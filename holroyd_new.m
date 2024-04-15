@@ -5,7 +5,7 @@
 % outputs:
 %    holroyd_habit - habit code as listed below
 function [holroyd_habit, F, w_l_p, c_r, e_d_r, m_g, O, a_r, p] = holroyd_new(handles, image_buffer)
-%function [holroyd_habit, F] = holroyd_new(handles, image_buffer)
+
 %/***************************************************************/%
 %/*	Return code                                                */
 %/*	                                                           */
@@ -61,146 +61,147 @@ function [holroyd_habit, F, w_l_p, c_r, e_d_r, m_g, O, a_r, p] = holroyd_new(han
 	% Plate coefficient; higher = harder to get plates
 	C_5 = 1.0;
 
-    if (n_slices == 0)
+	if (n_slices == 0)
 	    holroyd_habit = 'M';
 	    return;
 	else
-        if (parabola_fit_center_is_in(image_buffer, n_slices) == 1) 
-		    [x, y, d, a_a, a, r_2, F, O, w_l_p, w_l_m_p, s_c, c_r, e_d_r, m_g, a_r, p] = calc_stat(handles,image_buffer, n_slices);
-		    
-		    % Convert measurements to microns; assumes probe resolution given in mm
-		    d = d * probe_resolution * 1000;
-		    x = x * probe_resolution * 1000;
-		    y = y * probe_resolution * 1000;
-		    d = d * probe_resolution * 1000;
-		    a = a * (probe_resolution * 1000) * (probe_resolution * 1000);
-		    w_l_p =  w_l_p * probe_resolution * 1000;
-		    w_l_m_p = w_l_m_p * probe_resolution * 1000;
-		    m_g = m_g * probe_resolution * 1000;
-		    p = p * probe_resolution * 1000;
+		if (parabola_fit_center_is_in(image_buffer, n_slices) == 1) 
+			[x, y, d, a_a, a, r_2, F, O, w_l_p, w_l_m_p, s_c, c_r, e_d_r, m_g, a_r, p] = calc_stat(handles,image_buffer, n_slices);
+			
+			% Convert measurements to microns; assumes probe resolution given in mm
+			d = d * probe_resolution * 1000;
+			x = x * probe_resolution * 1000;
+			y = y * probe_resolution * 1000;
+			%d = d * probe_resolution * 1000;
+			a = a * (probe_resolution * 1000) * (probe_resolution * 1000);
+			w_l_p =  w_l_p * probe_resolution * 1000;
+			w_l_m_p = w_l_m_p * probe_resolution * 1000;
+			m_g = m_g * probe_resolution * 1000;
+			p = p * probe_resolution * 1000;
 
-		    % Missing image
-		    if (a == 0 )
-			    holroyd_habit = 'M';
-			    return;
-		    end
-    
-		    % Tiny particle (too small to classify; what is too small depends on probe resolution)
-		    if (d < 300)
-			    holroyd_habit = 't';
-			    return;
-		    end
-		    
-		    % Removal of bad particles with large internal gaps 
-		    if ((m_g > (d/3)) || (m_g >= 10 * (probe_resolution * 1000))) || (a_r > 20)
-			    holroyd_habit = 'o';
-			    return;
-		    end
-		    
-            if e_d_r > 0.5   
-        	    % Assume particle is center-out because too much is touching the edge
-    		    holroyd_habit = 'C';
-    		    return;
+			% Missing image
+			if (a == 0 )
+				holroyd_habit = 'M';
+				return;
+			end
+	
+			% Tiny particle (too small to classify; what is too small depends on probe resolution)
+			if (d < 300)
+				holroyd_habit = 't';
+				return;
+			end
+			
+			% Removal of bad particles with large internal gaps 
+			if ((m_g > (d/3)) || (m_g >= 10 * (probe_resolution * 1000))) || (a_r > 20)
+				holroyd_habit = 'o';
+				return;
+			end
+			
+			if e_d_r > 0.5   
+            	% Assume particle is center-out because too much is touching the edge
+        		holroyd_habit = 'C';
+        		return;
+        	end
+			
+			% Calculate required aspect ratio to define a particle as a column
+			needed_ratio = (1 + ((w_l_p * w_l_m_p)/40000) + (60/(d * (probe_resolution * 1000)))*(w_l_p) + (d * 0.0005));
+			
+			% An aspect ratio of 5 is always sufficient for a column
+			if (needed_ratio > 5)
+            	needed_ratio = 5;
             end
-		    
-		    % Calculate required aspect ratio to define a particle as a column
-		    needed_ratio = (1 + ((w_l_p * w_l_m_p)/40000) + (60/(d * (probe_resolution * 1000)))*(w_l_p) + (d * 0.0005));
-		    
-		    % An aspect ratio of 5 is always sufficient for a column
-            if (needed_ratio > 5)
-        	    needed_ratio = 5;
-            end
-		    
-		    if (a_r >= needed_ratio)
-			    % Column
-			    holroyd_habit = 'l';
-			    return;
-		    end
-		    
-		    % Calculate needed fine-detail ratios for certain habit classes; this algorithm
-		    % heavily relies on the fine detail ratio for calculations.
-		    sphere_f = C_1 * ((13 - (d / 250) - (abs(1 - c_r)*7.5)) / a_r);
-		    
-		    if d < 1000
-			    graupel_f = C_2 * (25 - ((1 - O) * 15) + (d - 1000)/30 - (abs(1 - c_r)*15)) / a_r;
-		    else
-			    graupel_f = C_2 * (25 - ((1 - O) * 15) + (d - 1000)/300 - (abs(1 - c_r)*15)) / a_r;
-		    end
+			
+			if (a_r >= needed_ratio)
+				% Column
+				holroyd_habit = 'l';
+				return;
 
-		    if d < 1000
-			    dendrite_f = C_3 * (35 + d*d/3e5) * a_r * (1 + (1000 - d)/200);
-		    else
-			    dendrite_f = C_3 * (35 + d*d/3e5) * a_r;
-		    end
-		    
-		    if d < 1000
-			    aggregate_f = C_4 * (30 - (d - 1000) / 30 + s_c * 10);
-		    else
-			    aggregate_f = C_4 * (30 - (d - 1000) / 300 + s_c * 10);
-		    end
-		    
-		    plate_f = C_5 * (50 - (((60 - w_l_m_p) / 10) * 8 / a_r)) * (2 * e_d_r + 1) * (1 + (2500/(d * d)) * probe_resolution);
-		    if d > 1000
-			    plate_f = plate_f * (d / 1000);
-		    end
+			end
+			
+			% Calculate needed fine-detail ratios for certain habit classes; this algorithm
+			% heavily relies on the fine detail ratio for calculations.
+			sphere_f = C_1 * ((13 - (d / 250) - (abs(1 - c_r)*7.5)) / a_r);
+			
+			if d < 1000
+				graupel_f = C_2 * (25 - ((1 - O) * 15) + (d - 1000)/30 - (abs(1 - c_r)*15)) / a_r;
+			else
+				graupel_f = C_2 * (25 - ((1 - O) * 15) + (d - 1000)/300 - (abs(1 - c_r)*15)) / a_r;
+			end
 
-		    % Habit is a sphere
-		    if F <= sphere_f
+			if d < 1000
+				dendrite_f = C_3 * (35 + d*d/3e5) * a_r * (1 + (1000 - d)/200);
+			else
+				dendrite_f = C_3 * (35 + d*d/3e5) * a_r;
+			end
+			
+			if d < 1000
+				aggregate_f = C_4 * (30 - (d - 1000) / 30 + s_c * 10);
+			else
+				aggregate_f = C_4 * (30 - (d - 1000) / 300 + s_c * 10);
+			end
+			
+			plate_f = C_5 * (50 - (((60 - w_l_m_p) / 10) * 8 / a_r)) * (2 * e_d_r + 1) * (1 + (2500/(d * d)) * probe_resolution);
+			if d > 1000
+				plate_f = plate_f * (d / 1000);
+			end
 
-			    holroyd_habit = 's';
-			    return;
-			    
-		    end
-		    
-		    % Habit is a graupel
-		    if F <= graupel_f
-		    
-			    holroyd_habit = 'g';
-			    return;
-			    
-		    end
-		    
-		    % Habit is a dendrite or plate depending on edge smoothness
-		    if (F > dendrite_f)
-		    
-			    if w_l_m_p < 100 - e_d_r * 200
-				    holroyd_habit = 'h';
-				    return;
-			    else
-				    holroyd_habit = 'd';
-				    return;
-			    end
-		    
-		    end
-		    
-		    % Habit is an aggregate
-		    if (F > aggregate_f)
-		    
-			    holroyd_habit = 'a';
-			    return;
-			    
-		    end
+			% Habit is a sphere
+			if F <= sphere_f
 
-		    % Habit is a plate or a dendrite depending on edge smoothness
-		    if (((O < 0.3) && (d < 1000)) || (F > plate_f))
-			    if (d > 700) && (w_l_m_p > 100)
-				    holroyd_habit = 'd';
-				    return;
-			    else
-				    holroyd_habit = 'h';
-				    return;
-			    end
-		    end
-		    
-		    % Habit is irregular (this does include rosettes, which do not seem to be easy to identify with this method)
-		    holroyd_habit = 'i';
-		    return;
-			    
-	    else
-		    [x, y, d, a_a, a, r_2, F, O, w_l_p, w_l_m_p, s_c, c_r, e_d_r, m_g, a_r, p] = calc_stat(handles,image_buffer, n_slices);
-		    
-		    holroyd_habit = 'C';
-		    return;
+				holroyd_habit = 's';
+				return;
+				
+			end
+			
+			% Habit is a graupel
+			if F <= graupel_f
+			
+				holroyd_habit = 'g';
+				return;
+				
+			end
+			
+			% Habit is a dendrite or plate depending on edge smoothness
+			if (F > dendrite_f)
+			
+				if w_l_m_p < 100 - e_d_r * 200
+					holroyd_habit = 'h';
+					return;
+				else
+					holroyd_habit = 'd';
+					return;
+				end
+			
+			end
+			
+			% Habit is an aggregate
+			if (F > aggregate_f)
+			
+				holroyd_habit = 'a';
+				return;
+				
+			end
+
+			% Habit is a plate or a dendrite depending on edge smoothness
+			if (((O < 0.3) && (d < 1000)) || (F > plate_f))
+				if (d > 700) && (w_l_m_p > 100)
+					holroyd_habit = 'd';
+					return;
+				else
+					holroyd_habit = 'h';
+					return;
+				end
+			end
+			
+			% Habit is irregular (this does include rosettes, which do not seem to be easy to identify with this method)
+			holroyd_habit = 'i';
+			return;
+				
+		else
+			[x, y, d, a_a, a, r_2, F, O, w_l_p, w_l_m_p, s_c, c_r, e_d_r, m_g, a_r, p] = calc_stat(handles,image_buffer, n_slices);
+			
+			holroyd_habit = 'C';
+			return;
         end
     end
 end
@@ -676,6 +677,10 @@ end
 %/**************************************************************************/
 %/*** Not implemented ****/
 function result = parabola_fit_center_is_in(image_buffer, n_slices) 
+
+
     result = 1;
+
 	return;
+
 end

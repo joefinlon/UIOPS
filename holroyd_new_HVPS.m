@@ -5,7 +5,7 @@
 % outputs:
 %    holroyd_habit - habit code as listed below
 function [holroyd_habit, F, w_l_p, c_r, e_d_r, m_g, O, a_r, p] = holroyd_new_HVPS(handles, image_buffer)
-%function [holroyd_habit, F] = holroyd_new_HVPS(handles, image_buffer)
+
 %/***************************************************************/%
 %/*	Return code                                                */
 %/*	                                                           */
@@ -56,105 +56,113 @@ function [holroyd_habit, F, w_l_p, c_r, e_d_r, m_g, O, a_r, p] = holroyd_new_HVP
 	% Aggregate coefficient; higher = harder to get aggregates
 	C_4 = 0.35;
 
-    if (n_slices == 0)
-        holroyd_habit = 'M';
-        return;
+	if (n_slices == 0)
+	    holroyd_habit = 'M';
+	    return;
 	else
-        if (parabola_fit_center_is_in(image_buffer, n_slices) == 1) 
-		    % Calculate morphological crystal properties
-		    [x, y, d, a_a, a, r_2, F, O, w_l_p, w_l_m_p, s_c, c_r, e_d_r, m_g, a_r, p] = calc_stat(handles,image_buffer, n_slices);
+		if (parabola_fit_center_is_in(image_buffer, n_slices) == 1) 
+			% Calculate morphological crystal properties
+			[x, y, d, a_a, a, r_2, F, O, w_l_p, w_l_m_p, s_c, c_r, e_d_r, m_g, a_r, p] = calc_stat(handles,image_buffer, n_slices);
 
-		    % Convert probe resolution to microns
-		    d = d * probe_resolution * 1000;
-		    x = x * probe_resolution * 1000;
-		    y = y * probe_resolution * 1000;
-		    d = d * probe_resolution * 1000;
-		    a = a * (probe_resolution * 1000) * (probe_resolution * 1000);
-		    w_l_p =  w_l_p * probe_resolution * 1000;
-		    w_l_m_p =  w_l_m_p * probe_resolution * 1000;
-		    m_g = m_g * probe_resolution * 1000;
-		    p = p * probe_resolution * 1000;
+			% Convert probe resolution to microns
+			d = d * probe_resolution * 1000;
+			x = x * probe_resolution * 1000;
+			y = y * probe_resolution * 1000;
+			%d = d * probe_resolution * 1000;
+			a = a * (probe_resolution * 1000) * (probe_resolution * 1000);
+			w_l_p =  w_l_p * probe_resolution * 1000;
+			w_l_m_p =  w_l_m_p * probe_resolution * 1000;
+			m_g = m_g * probe_resolution * 1000;
+			p = p * probe_resolution * 1000;
 
-		    if (a == 0 )
-			    holroyd_habit = 'M';
-			    return;
-		    end
-    
-		    if (d < 1000)
-			    holroyd_habit = 't';
-			    return;
-		    end
-		    
-		    if ((m_g > (d/3)) || (m_g >= 10 * (probe_resolution * 1000))) || (a_r > 20)
-			    holroyd_habit = 'o';
-			    return;
-		    end
+			if (a == 0 )
+				holroyd_habit = 'M';
+				return;
+			end
+	
+			if (d < 1000)
+				holroyd_habit = 't';
+				return;
+			end
+			
+			if ((m_g > (d/3)) || (m_g >= 10 * (probe_resolution * 1000))) || (a_r > 20)
+				holroyd_habit = 'o';
+				return;
+			end
             
             if e_d_r > 0.5   
-        	    % Assume particle is center-out because too much is touching the edge
-    		    holroyd_habit = 'C';
-    		    return;
-            end
-    	    
-    	    % method of identifying columns is different for the HVPS than for the 2DS
-            if ((a / (probe_resolution * 1000) / d) < 1.6 - m_g/100 + (a_r - 1)/5)
-			    holroyd_habit = 'l';
-			    return;
-            end
-		    
-		    if a_r > 5
-			    holroyd_habit = 'l';
-			    return;
-		    end
-		    
-		    sphere_f = C_1 * ((13 - (d / 250) - (abs(1 - c_r)*7.5)) / a_r);
-		    
-		    if d < 1000
-			    graupel_f = C_2 * ((25 - ((1 - O) * 15) + (d - 1000)/30 - (abs(1 - c_r)*15)) / a_r);
-		    else
-			    graupel_f = C_2 * ((25 - ((1 - O) * 15) + (d - 1000)/300 - (abs(1 - c_r)*15)) / a_r);
-		    end
+            	% Assume particle is center-out because too much is touching the edge
+        		holroyd_habit = 'C';
+        		return;
+        	end
+        	
+        	% method of identifying columns is different for the HVPS than for the 2DS
+        	if ((a / (probe_resolution * 1000) / d) < 1.6 - m_g/100 + (a_r - 1)/5)
+				holroyd_habit = 'l';
+				return;
+			end
+			
+			if a_r > 5
+				holroyd_habit = 'l';
+				return;
+			end
+			
+			sphere_f = C_1 * ((13 - (d / 250) - (abs(1 - c_r)*7.5)) / a_r);
+			
+			if d < 1000
+				graupel_f = C_2 * ((25 - ((1 - O) * 15) + (d - 1000)/30 - (abs(1 - c_r)*15)) / a_r);
+			else
+				graupel_f = C_2 * ((25 - ((1 - O) * 15) + (d - 1000)/300 - (abs(1 - c_r)*15)) / a_r);
+			end
 
-		    if d < 1000
-			    dendrite_f = C_3 * ((35 + d*d/3e5) * a_r * (1 + (1000 - d)/200)) * (1.4 - s_c);
-		    else
-			    dendrite_f = C_3 * ((35 + d*d/3e5) * a_r) * (1.4 - s_c);
-		    end
-		    
-		    if d < 1000
-			    aggregate_f = C_4 * (30 - (d - 1000) / 30 + s_c * 10);
-		    else
-			    aggregate_f = C_4 * (30 - (d - 1000) / 300 + s_c * 10);
-		    end
+			if d < 1000
+				dendrite_f = C_3 * ((35 + d*d/3e5) * a_r * (1 + (1000 - d)/200)) * (1.4 - s_c);
+			else
+				dendrite_f = C_3 * ((35 + d*d/3e5) * a_r) * (1.4 - s_c);
+			end
+			
+			if d < 1000
+				aggregate_f = C_4 * (30 - (d - 1000) / 30 + s_c * 10);
+			else
+				aggregate_f = C_4 * (30 - (d - 1000) / 300 + s_c * 10);
+			end
 
-		    if F <= sphere_f
-			    holroyd_habit = 's';
-			    return;
-		    end
-		    
-		    if F <= graupel_f
-			    holroyd_habit = 'g';
-			    return;
-		    end
-		    
-		    if (F > dendrite_f)
-			    holroyd_habit = 'd';
-			    return;
-		    end
-		    
-		    if (F > aggregate_f)
-			    holroyd_habit = 'a';
-			    return;
-		    end
-		    
-		    holroyd_habit = 'i'; % otherwise irregular
-		    return;
-			    
-	    else
-		    [x, y, d, a_a, a, r_2, F, O, w_l_p, w_l_m_p, s_c, c_r, e_d_r, m_g, a_r, p] = calc_stat(handles,image_buffer, n_slices);
-		    
-		    holroyd_habit = 'C';
-		    return;
+			if F <= sphere_f
+
+				holroyd_habit = 's';
+				return;
+				
+			end
+			
+			if F <= graupel_f
+			
+				holroyd_habit = 'g';
+				return;
+				
+			end
+			
+			if (F > dendrite_f)
+
+				holroyd_habit = 'd';
+				return;
+			
+			end
+			
+			if (F > aggregate_f)
+			
+				holroyd_habit = 'a';
+				return;
+				
+			end
+			
+			holroyd_habit = 'i';
+			return;
+				
+		else
+			[x, y, d, a_a, a, r_2, F, O, w_l_p, w_l_m_p, s_c, c_r, e_d_r, m_g, a_r, p] = calc_stat(handles,image_buffer, n_slices);
+			
+			holroyd_habit = 'C';
+			return;
         end
     end
 end
@@ -630,6 +638,10 @@ end
 %/**************************************************************************/
 %/*** Not implemented ****/
 function result = parabola_fit_center_is_in(image_buffer, n_slices) 
+
+
     result = 1;
+
 	return;
+
 end

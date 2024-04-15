@@ -828,7 +828,7 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
                 % Just to test if there are bad images, usually 0 area images
                 figsize = size(c);
                 if figsize(2)~=diodenum
-                    disp('Not equal to doide number');
+                    disp('Not equal to diode number');
                     return
                 end
                 
@@ -1182,7 +1182,7 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
                 
                 
                 %% Determine the Particle Habit
-                %  We use the Holroyd algorithm here
+                %  We use either the original or a modified Holroyd algorithm here
                 handles.bits_per_slice = diodenum;
                 if iCalcAllDiodeStats
                     images.diode_stats(kk,:) = sum(c=='0',1); % Option to save diode stats for every particle
@@ -1259,6 +1259,11 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
                     end
                 end
                 
+                % assign center-out habit flag
+                if images.center_in(kk) == 0
+                    images.holroyd_habit(kk) = 'C';
+                end
+
                 if (images.image_width(kk)~=0)
                     images.axis_ratio(kk)=images.image_length(kk)/images.image_width(kk);
                 else
