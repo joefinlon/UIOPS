@@ -1409,11 +1409,19 @@ for i=1:length(tas)
 				% We search through each individual set of shattering events and check to see if any of the particles are both
 				% larger than the reacceptance diameter and have an interarrival time less than the reacceptance threshold as we'd
 				% expect diffraction fringes to be larger than shattered particles and to have a particularly small interarrival time
-                for iEvent = find(rBegin):find(rEnd)
-					if ((particle_diameter_minR(iEvent) > maxParticle) && (int_arr(iEvent) < reaccptMaxIA))
-						maxParticle = particle_diameter_minR(iEvent);
-						eIndex = iEvent;
-					end
+                % Search entire bracketed region from first rBegin to last
+                % rEnd, supports newer MATLAB versions while working on
+                % older ones to capture all potential shattering events in
+                % one continuous range; JF 11/5/25
+                rBeginIdx = find(rBegin, 1, 'first');
+                rEndIdx = find(rEnd, 1, 'last');
+                if ~isempty(rBeginIdx) && ~isempty(rEndIdx) && rEndIdx >= rBeginIdx
+                    for iEvent = rBeginIdx:rEndIdx
+                        if ((particle_diameter_minR(iEvent) > maxParticle) && (int_arr(iEvent) < reaccptMaxIA))
+						    maxParticle = particle_diameter_minR(iEvent);
+						    eIndex = iEvent;
+                        end
+                    end
                 end
 
 				auto_reject(eIndex) = 'R';

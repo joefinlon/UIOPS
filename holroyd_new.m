@@ -35,44 +35,45 @@ function [holroyd_habit, F, w_l_p, c_r, e_d_r, m_g, O, a_r, p] = holroyd_new(han
     probe_resolution = handles.diodesize;
 	n_slices  = image_size(1);
 	
-	% Set variables to -1 initially; this indicates that they are not valid if they are still below zero after processing
-	F = -1;
-	w_l_p = -1;
-	c_r = -1;
-	e_d_r = -1;
-	m_g = -1;
-	O = -1;
-	a_r = -1;
+		% Set variables to -1 initially; this indicates that they are not valid if they are still below zero after processing
+		F = -1;
+		w_l_p = -1;
+		w_l_m_p = -1;
+		s_c = -1;
+		c_r = -1;
+		e_d_r = -1;
+		m_g = -1;
+		O = -1;
+		a_r = -1;
+			
+		% Tuning coefficients; used to adjust algorithm for resolution differences
 		
-	% Tuning coefficients; used to adjust algorithm for resolution differences
+		% Sphere coefficent; higher = easier to get spheres
+		C_1 = 1.0;
+		
+		% Graupel coefficient; higher = easier to get graupel
+		C_2 = 1.0;
+		
+		% Dendrite coefficient; higher = harder to get dendrites
+		C_3 = 1.0;
+		
+		% Aggregate coefficient; higher = harder to get aggregates
+		C_4 = 1.0;
+		
+		% Plate coefficient; higher = harder to get plates
+		C_5 = 1.0;
 	
-	% Sphere coefficent; higher = easier to get spheres
-	C_1 = 1.0;
-	
-	% Graupel coefficient; higher = easier to get graupel
-	C_2 = 1.0;
-	
-	% Dendrite coefficient; higher = harder to get dendrites
-	C_3 = 1.0;
-	
-	% Aggregate coefficient; higher = harder to get aggregates
-	C_4 = 1.0;
-	
-	% Plate coefficient; higher = harder to get plates
-	C_5 = 1.0;
-
-	if (n_slices == 0)
-	    holroyd_habit = 'M';
-	    return;
-	else
-		if (parabola_fit_center_is_in(image_buffer, n_slices) == 1) 
+		if (n_slices == 0)
+		holroyd_habit = 'M';
+		return;
+		else
+			if (parabola_fit_center_is_in(image_buffer, n_slices) == 1) 
 			[x, y, d, a_a, a, r_2, F, O, w_l_p, w_l_m_p, s_c, c_r, e_d_r, m_g, a_r, p] = calc_stat(handles,image_buffer, n_slices);
 			
 			% Convert measurements to microns; assumes probe resolution given in mm
 			d = d * probe_resolution * 1000;
 			x = x * probe_resolution * 1000;
 			y = y * probe_resolution * 1000;
-			%d = d * probe_resolution * 1000;
 			a = a * (probe_resolution * 1000) * (probe_resolution * 1000);
 			w_l_p =  w_l_p * probe_resolution * 1000;
 			w_l_m_p = w_l_m_p * probe_resolution * 1000;
@@ -262,7 +263,7 @@ function [d_length, w_width, d, a_angle, area, r2_correlation, F_fine_detail, O,
 		for j=1:BITS_PER_SLICE
 			if ((image_buffer(i,j)) == '0')     
 
-				tx = i;
+				tx = i/handles.tasRatio; %PB 2/27/26 - correct time dimension for TAS
 				ty =  j;
 				if (tx > max_x) 
 					max_x = tx;
@@ -315,17 +316,17 @@ function [d_length, w_width, d, a_angle, area, r2_correlation, F_fine_detail, O,
 
 		if ((image_buffer(i,1)) == '0')
 			if first_on_edge_x < 0
-				first_on_edge_x = i;
+				first_on_edge_x = i/handles.tasRatio; %PB 2/27/26 - correct time dimension for TAS
 			end
-			last_on_edge_x = i;		
+			last_on_edge_x = i/handles.tasRatio; %PB 2/27/26 - correct time dimension for TAS		
 		end
 			
 		if ((image_buffer(i,BITS_PER_SLICE)) == '0')
 			if first_on_edge_x < 0
-				first_on_edge_x = i;
+				first_on_edge_x = i/handles.tasRatio; %PB 2/27/26 - correct time dimension for TAS
 			end
 			
-			last_on_edge_x = i;
+			last_on_edge_x = i/handles.tasRatio; %PB 2/27/26 - correct time dimension for TAS
 				
 		end
 
@@ -336,7 +337,7 @@ function [d_length, w_width, d, a_angle, area, r2_correlation, F_fine_detail, O,
 			end
 		end
     end
-	area = n_count;
+	area = n_count/handles.tasRatio; %PB 2/27/26 - correct area for TAS
 
 %/*** scan the other way for perimeter change ****/
 
@@ -355,29 +356,28 @@ function [d_length, w_width, d, a_angle, area, r2_correlation, F_fine_detail, O,
 		
 			if ((image_buffer(i,j)) == '0')
 			
-				tx = i;
-		
-				if (tx > max_x_temp)
-					max_x_temp = ty;
+				%PB 2/27/26 - to avoid confusion, using i instead of tx for index in the time dimension for opacity (removed line that said tx = i)
+				if (i > max_x_temp) %PB 2/27/26 - i instead of tx
+					max_x_temp = i; %PB 2/27/26 - bug fix (right side was ty)
 				end
 				
-				if (tx < min_x_temp)
-					min_x_temp = tx;
+				if (i < min_x_temp) %PB 2/27/26 - i instead of tx
+					min_x_temp = i; %PB 2/27/26 - i instead of tx
 				end
 				
 				fully_on_temp = fully_on_temp + 1;
 			     
 				if (spot_on_off == 0)
 					spot_on_off = 1;
-					p_perimeter_change = p_perimeter_change + 1;
+					p_perimeter_change = p_perimeter_change + 1/handles.tasRatio; %PB 2/27/26 - correct time dimension for TAS
 				elseif (i == n_slices)
-					p_perimeter_change = p_perimeter_change + 1;
+					p_perimeter_change = p_perimeter_change + 1/handles.tasRatio; %PB 2/27/26 - correct time dimension for TAS
 					
 				end
 			else
 				if (spot_on_off == 1)
 					spot_on_off = 0;
-					p_perimeter_change = p_perimeter_change + 1;
+					p_perimeter_change = p_perimeter_change + 1/handles.tasRatio; %PB 2/27/26 - correct time dimension for TAS
 				end
 			end
 		end
@@ -391,8 +391,8 @@ function [d_length, w_width, d, a_angle, area, r2_correlation, F_fine_detail, O,
 		end
 		
 		if (fully_on_temp ~= 0)
-			partial_on_count_b = partial_on_count + 1;
-			if (fully_on_temp >= ((max_y_temp - min_y_temp) * 0.8))
+			partial_on_count_b = partial_on_count_b + 1;  %PB 2/27/26 - bug fix (right side was partial_on_count + 1; this bug caused the opacity to exceed 1 sometimes)
+			if (fully_on_temp >= ((max_x_temp - min_x_temp) * 0.8)) %PB 2/27/26 - bug fix (right side was ((max_y_temp - min_y_temp) * 0.8))
 				fully_on_count_b = fully_on_count_b + 1;
 			end
 		end
@@ -400,23 +400,23 @@ function [d_length, w_width, d, a_angle, area, r2_correlation, F_fine_detail, O,
 	end
 
 	if (max_x >= min_x) 
-		x_length = max_x - min_x +1;
+		x_length = max_x - min_x + 1/handles.tasRatio; %PB 2/27/26 - correct time dimension for TAS
 	else
 		x_length = 0.0;
 	end
 
 	if (max_y >= min_y) 
-		y_length = max_y - min_y +1;
+		y_length = max_y - min_y + 1;
 	else
 		y_length = 0.0;
 	end
 		
-	cross_xy = sum_xy - (sum_x * sum_y / area);
-	cross_x2 = sum_x2 - (sum_x * sum_x / area);
-	cross_y2 = sum_y2 - (sum_y * sum_y / area);
+	cross_xy = sum_xy - (sum_x * sum_y / n_count); %PB 2/27/26 - sum/n_count to get mean (was sum/area) 
+	cross_x2 = sum_x2 - (sum_x * sum_x / n_count); %PB 2/27/26 - sum/n_count to get mean (was sum/area) 
+	cross_y2 = sum_y2 - (sum_y * sum_y / n_count); %PB 2/27/26 - sum/n_count to get mean (was sum/area) 
 
 	slope = cross_xy / cross_x2;
-	intercept = (sum_y/(area)) - slope * (sum_x/(area));
+	intercept = (sum_y/(n_count)) - slope * (sum_x/(n_count)); %PB 2/27/26 - sum/n_count to get mean (was sum/area) 
 	
 	r2_correlation = (abs(cross_xy)) / (sqrt( cross_x2 * cross_y2));
 

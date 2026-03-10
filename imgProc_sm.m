@@ -252,6 +252,24 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
     
     diode_size = handles.diodesize;
 	
+    %% Check if newer ellipse fitting supported - JF 10/20/25
+    if iRectEllipse
+        % Detect MEX capabilities once
+        persistent hasExtendedOutputs
+        if isempty(hasExtendedOutputs)
+            try
+                % Test with dummy data
+                testData = repmat('1', 5, 5);  % Background of '1's
+                testData(2:4, 2:4) = '0';      % 3x3 particle region of '0's
+                [~, ~, ~, ~, ~] = CGAL_EllipseSize(testData);
+                hasExtendedOutputs = true;
+                fprintf('Using the revised Ellipse fitting code.\n')
+            catch
+                hasExtendedOutputs = false;
+                fprintf('*NOT* using the revised Ellipse fitting code.\n')
+            end
+        end
+    end
 	%% Read the particle image files
 	handles.f = netcdf.open(infile,'nowrite');
 	[~, dimlen] = netcdf.inqDim(handles.f,2);
@@ -526,15 +544,17 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
 		netcdf.putAtt(f, varid69, 'Description', 'Angle of rectangle with respect to the time direction')
         netcdf.defVarDeflate(f, varid69, true, true, 9);
         
-        % varid75 = netcdf.defVar(f,'image_EllipseX','double',dimid0);
-		% netcdf.putAtt(f, varid75, 'Units', '--')
-		% netcdf.putAtt(f, varid75, 'Description', 'Center position of ellipse with respect to the time direction')
-        % netcdf.defVarDeflate(f, varid75, true, true, 9);
-        
-        % varid76 = netcdf.defVar(f,'image_EllipseY','double',dimid0);
-		% netcdf.putAtt(f, varid76, 'Units', '--')
-		% netcdf.putAtt(f, varid76, 'Description', 'Center position of ellipse with respect to the photodiode direction')
-        % netcdf.defVarDeflate(f, varid76, true, true, 9);
+        if hasExtendedOutputs % special catch for newly compiled ellipse code
+            varid75 = netcdf.defVar(f,'image_EllipseX','double',dimid0);
+		    netcdf.putAtt(f, varid75, 'Units', '--')
+		    netcdf.putAtt(f, varid75, 'Description', 'Center position of ellipse with respect to the time direction')
+            netcdf.defVarDeflate(f, varid75, true, true, 9);
+            
+            varid76 = netcdf.defVar(f,'image_EllipseY','double',dimid0);
+		    netcdf.putAtt(f, varid76, 'Units', '--')
+		    netcdf.putAtt(f, varid76, 'Description', 'Center position of ellipse with respect to the photodiode direction')
+            netcdf.defVarDeflate(f, varid76, true, true, 9);
+        end
 	end
 	varid28 = netcdf.defVar(f,'percent_shadow_area','double',dimid0);
 	netcdf.putAtt(f, varid28, 'Units', 'percent')
@@ -1272,9 +1292,12 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
                     
                 if 1==iRectEllipse
                     [images.RectangleL(kk), images.RectangleW(kk), images.RectangleAngle(kk)] = CGAL_RectSize(c);
-                    [images.EllipseL(kk), images.EllipseW(kk), images.EllipseAngle(kk)] = CGAL_EllipseSize(c);
                     % [images.RectangleL(kk), images.RectangleW(kk), images.RectangleAngle(kk), images.RectangleY(kk), images.RectangleX(kk)] = CGAL_RectSize(c);
-                    % [images.EllipseL(kk), images.EllipseW(kk), images.EllipseAngle(kk), images.EllipseY(kk), images.EllipseX(kk)] = CGAL_EllipseSize(c);
+                    if hasExtendedOutputs % special catch for newly compiled ellipse code; JF 10/20/25
+                        [images.EllipseL(kk), images.EllipseW(kk), images.EllipseAngle(kk), images.EllipseY(kk), images.EllipseX(kk)] = CGAL_EllipseSize(c);
+                    else
+                        [images.EllipseL(kk), images.EllipseW(kk), images.EllipseAngle(kk)] = CGAL_EllipseSize(c);
+                    end
                 end
                 %% Get the area ratio using the DL=max(DT,DP), only observed area are used
                 if images.image_length(kk) > images.image_width(kk)
@@ -1341,8 +1364,10 @@ fprintf('* PURPOSE. See the GNU General Public License for more details.\n\n')
 				netcdf.putVar ( f, varid46, wstart, w-wstart+1, images.RectangleL*diode_size);
 				netcdf.putVar ( f, varid47, wstart, w-wstart+1, images.RectangleW*diode_size);
 				netcdf.putVar ( f, varid67, wstart, w-wstart+1, images.RectangleAngle);
-                % netcdf.putVar ( f, varid75, wstart, w-wstart+1, images.EllipseX);
-                % netcdf.putVar ( f, varid76, wstart, w-wstart+1, images.EllipseY);
+                if hasExtendedOutputs % special catch for newly compiled ellipse code; JF 10/20/25
+                    netcdf.putVar ( f, varid75, wstart, w-wstart+1, images.EllipseX);
+                    netcdf.putVar ( f, varid76, wstart, w-wstart+1, images.EllipseY);
+                end
 				netcdf.putVar ( f, varid48, wstart, w-wstart+1, images.EllipseL*diode_size);
 				netcdf.putVar ( f, varid49, wstart, w-wstart+1, images.EllipseW*diode_size);
 				netcdf.putVar ( f, varid69, wstart, w-wstart+1, images.EllipseAngle);

@@ -5,9 +5,11 @@ Please consult this repository's wiki for full, detailed instructions to run the
 
 ## Current Developers & Contributers
 - **Joe Finlon** (jfinlon@uw.edu)
-- **Dan Stechman** (stechman@ou.edu)
-- **Wei Wu** (weiwu@ou.edu)
-- **Adam Majewski** (amajewsk@uwyo.edu)
+- **Julian Schima** (jcs6832@psu.edu)
+- **Peter Brechner** (peter.a.brechner-1@ou.edu)
+- ~~**Dan Stechman** (stechman@ou.edu)~~
+- ~~**Wei Wu** (weiwu@ou.edu)~~
+- ~~**Adam Majewski** (amajewsk@uwyo.edu)~~
 
 ## Dependencies
 **Supported OSes:** Linux, Mac (MATLAB Windows support not planned at this time)  
